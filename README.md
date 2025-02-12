@@ -1,5 +1,9 @@
 # stormserver
-StormServer http(s) server
+StormServer server. Simple socket server. By default http server.
+
+Extension: raw, smtp, proxy, xml.
+
+Created in 201x years. It's so old.
 
 # Build
 ```
