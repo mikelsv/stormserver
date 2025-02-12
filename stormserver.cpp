@@ -1,6 +1,7 @@
 #define PROJECTNAME "stormserver"
 #define PROJECTVER PROJECTNAME ## _versions
-#define USEMSV_GENERALCPP
+#define USEMSV_MSVCORE
+//#define USEMSV_GENERALCPP
 
 #define USEMSV_ITOS
 #define USEMSV_ILIST
