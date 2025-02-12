@@ -48,7 +48,7 @@ Versions PROJECTVER[]={
 
 DWORD StormServerThread(LPVOID);
 
-int main(int args, char* arg[]){
+int main(int args, char* arg[], char* env[]){
 	msvcoremain(args, arg, env);
 	print(PROJECTNAME, " v.", PROJECTVER[0].ver, " (", PROJECTVER[0].date, ").\r\n");
 //	ILink link; mainp(args, arg, link);
