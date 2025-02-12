@@ -1,4 +1,4 @@
-PROJECTNAME=stormhttp
+PROJECTNAME=stormserver
 ADDLIB= -lpthread -lcrypto -lssl -lpcre2
 ADDFLAGS=
 

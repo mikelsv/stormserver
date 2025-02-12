@@ -9,7 +9,7 @@
 #define USEMSV_XDATACONT
 
 #define USEMSV_STORMSERVER
-#define USEMSV_WEBSOCKETS
+//#define USEMSV_WEBSOCKETS
 
 #define USEMSV_CONFLINE
 #define USEMSV_CONSOLE
@@ -49,9 +49,11 @@ Versions PROJECTVER[]={
 DWORD StormServerThread(LPVOID);
 
 int main(int args, char* arg[]){
-	ILink link; mainp(args, arg, link);
+	msvcoremain(args, arg, env);
+	print(PROJECTNAME, " v.", PROJECTVER[0].ver, " (", PROJECTVER[0].date, ").\r\n");
+//	ILink link; mainp(args, arg, link);
 
-	print(PROJECTNAME, " v.", PROJECTVER[0].ver," (", PROJECTVER[0].date, ").\r\n");
+//	print(PROJECTNAME, " v.", PROJECTVER[0].ver," (", PROJECTVER[0].date, ").\r\n");
 
 	//StartThread(StormServerEmulate);
 	StormServerThread(0);
