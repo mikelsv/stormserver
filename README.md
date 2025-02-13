@@ -10,7 +10,7 @@ Created in 201x years. It's so old.
 git clone --recursive https://github.com/mikelsv/stormserver.git
 git clone https://github.com/mikelsv/msvcore2.git
 
-MSVS 20122: stormserver/stormserver.vcxproj
+MSVS 2012: stormserver/stormserver.vcxproj
 GCC: stormserver/Makefile
 ```
 

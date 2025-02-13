@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Server Statistics</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #server-stats, #connections {
+            margin-bottom: 20px;
+        }
+        .connection {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Server Statistics</h1>
+
+    <!-- Server statistics -->
+    <div id="server-stats">
+        <h2>Server Stats</h2>
+        <p><strong>Connections:</strong> <span id="total-connections">0</span></p>
+        <p><strong>Traffic:</strong> <span id="traffic-state">0</span> bytes</p>
+        <p><strong>[DEL] Traffic Sent:</strong> <span id="traffic-sent">0</span> bytes</p>
+    </div>
+
+    <!-- Per-connection statistics -->
+    <div id="connections">
+        <h2>Connections</h2>
+        <!-- Individual connection stats will be dynamically added here -->
+    </div>
+
+    <script>
+        // Create a WebSocket connection to the server
+        const socket = new WebSocket('ws://localhost:18080'); // Replace with your WebSocket server URL
+
+        // DOM elements for server stats
+        const totalConnectionsEl = document.getElementById('total-connections');
+        const trafficStateEl = document.getElementById('traffic-state');
+        const trafficSentEl = document.getElementById('traffic-sent');
+
+        // DOM element for per-connection stats
+        const connectionsDiv = document.getElementById('connections');
+
+        // Store connection stats by ID
+        const connectionStats = {};
+
+        // State types
+        stormtypes = {
+            STORM_DEBUG_CMD_HELLO:  1,
+            STORM_DEBUG_CMD_STATE:  2,
+            STORM_DEBUG_CMD_ACCEPT:	3,
+            STORM_DEBUG_CMD_RECV:	4,
+            STORM_DEBUG_CMD_SEND:	5,
+            STORM_DEBUG_CMD_CLOSE:	6
+        };
+
+        // Function to update server statistics
+        function updateServerStats(state) {
+            totalConnectionsEl.textContent = state.state_con + " / " + (state.state_con - state.state_close) + " / " + state.state_close + " (" + state.state_http_req + " http req)";
+            trafficStateEl.textContent = state.state_recv_all + " / " + state.state_send_all;
+            //trafficSentEl.textContent = data.trafficSent || 0;
+        }
+
+        // Function to update or add per-connection statistics
+        function updateConnectionAccept(data) {
+            data.id = data.sock;
+
+            const { id, trafficReceived, trafficSent } = data;
+
+            // Check if the connection already exists in the DOM
+            if (!connectionStats[id]) {
+                cip = ipToText(data.cip, data.cport);
+                tip = ipToText(data.tip, data.tport);
+
+                // Create a new connection element
+                const connectionDiv = document.createElement('div');
+                connectionDiv.classList.add('connection');
+                connectionDiv.id = `connection-${id}`;
+                connectionDiv.innerHTML = `
+                    <p><strong>Socket:</strong> ${id}. ${cip} &lt;-- ${tip}</p>
+                    <p><strong>Traffic:</strong> <span class="traffic-state">0</span> bytes</p>
+                    <p><strong>---</strong> <span class="traffic-sent">0</span> bytes</p>
+                `;
+                connectionsDiv.appendChild(connectionDiv);
+
+                connectionDiv.recv_count = 0;
+                connectionDiv.send_count = 0;
+
+                // Store reference to the connection element
+                connectionStats[id] = connectionDiv;
+            }
+
+            // Update the traffic stats for the connection
+            const connectionDiv = connectionStats[id];
+            connectionDiv.querySelector('.traffic-state').textContent = trafficReceived || 0;
+            connectionDiv.querySelector('.traffic-sent').textContent = trafficSent || 0;
+        }
+
+        function updateConnectionTraff(data){
+            if (connectionStats[data.sock]) {
+                item = connectionStats[data.sock];
+                
+                if(data.type == stormtypes.STORM_DEBUG_CMD_RECV)
+                    item.recv_count += data.traff;
+                else if(data.type == stormtypes.STORM_DEBUG_CMD_SEND)
+                    item.send_count += data.traff;
+
+                // Update the traffic stats for the connection
+                //const connectionDiv = connectionStats[data.sock];
+                item.querySelector('.traffic-state').textContent = item.recv_count + " / " + item.send_count;
+                //connectionDiv.querySelector('.traffic-sent').textContent = trafficSent || 0;
+            }                
+        }
+
+        function updateConnectionClose(data){
+            if (connectionStats[data.sock]) {
+                connectionStats[data.sock].remove();
+                delete connectionStats[data.sock];
+            }
+        }
+
+        stormstate = {
+            readBinary(data){
+                // Create a DataView to interpret the binary data
+                const view = new DataView(data);
+
+                // Read integers from the binary data
+                const head = view.getUint32(0, true); // Offset 0, little-endian
+                const size = view.getUint32(4, true); // Offset 0, little-endian
+                const type = view.getUint32(8, true); // Offset 0, little-endian
+
+                //console.log('[Server] type! ' + type);
+
+                if(head != 0xdeadf00d){
+                    console.error('WebSocket head corrypted.');
+                    return ;
+                }
+
+                if(type == stormtypes.STORM_DEBUG_CMD_HELLO)
+                    this.onBinaryHello();
+                else if(type == stormtypes.STORM_DEBUG_CMD_STATE)
+                    this.onBinaryState(view);
+                else if(type == stormtypes.STORM_DEBUG_CMD_ACCEPT)
+                    this.onBinaryAccept(view);
+                else if(type == stormtypes.STORM_DEBUG_CMD_RECV || type == stormtypes.STORM_DEBUG_CMD_SEND)
+                    this.onBinaryTraff(view);
+                else if(type == stormtypes.STORM_DEBUG_CMD_CLOSE)
+                    this.onBinaryClose(view);
+                else
+                    console.error('WebSocket unknow type id:', type);
+            },
+
+            onBinaryHello(){
+                console.log('[Server] Hello!');
+            },
+
+            onBinaryState(view){
+                const struct = { head: 4, size: 4, type: 4, state_con: 4, state_close: 4, state_http_req: 8, state_recv_all: 8, state_send_all: 8 };
+                updateServerStats(parseBlob(view, struct));
+            },
+
+            onBinaryAccept(view){
+                const struct = { head: 4, size: 4, type: 4, sock: 4, cip: 4, tip: 4, cport: 2, tport: 2 };
+                updateConnectionAccept(parseBlob(view, struct));
+            },
+
+            onBinaryTraff(view){
+                const struct = { head: 4, size: 4, type: 4, sock: 4, traff: 4 };
+                updateConnectionTraff(parseBlob(view, struct));
+            },
+
+            onBinaryClose(view){
+                const struct = { head: 4, size: 4, type: 4, sock: 4};
+                updateConnectionClose(parseBlob(view, struct));
+            }
+        }
+
+        // WebSocket event: Connection opened
+        socket.onopen = () => {
+            console.log('WebSocket connection established.');
+
+            socket.send('Hello, server! This is the client.');
+        };
+
+        // WebSocket event: Message received
+        socket.onmessage = (event) => {
+            if(event.data instanceof Blob){
+                // Example: Converting Blob to ArrayBuffer
+                event.data.arrayBuffer().then((buffer) => {
+                    stormstate.readBinary(buffer);
+                });
+            }
+            else
+                console.log('Message received from server:', event.data);
+        };
+
+        // WebSocket event: Message received
+        socket.onbinary = (event) => {
+            stormstate.readBinary(event.data);
+        };
+
+        // WebSocket event: Error occurred
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        // WebSocket event: Connection closed
+        socket.onclose = () => {
+            console.log('WebSocket connection closed.');
+        };
+
+        function parseBlob(view, template) {
+            // Step 3: Parse the data based on the template
+            const result = {};
+            let offset = 0;
+
+            for (const [key, size] of Object.entries(template)) {
+                switch (size) {
+                    case 1:
+                        result[key] = view.getUint8(offset); // 1 byte
+                        break;
+                    case 2:
+                        result[key] = view.getUint16(offset, true); // 2 bytes, little-endian
+                        break;
+                    case 4:
+                        result[key] = view.getUint32(offset, true); // 4 bytes, little-endian
+                        break;
+                    case 8:
+                        // For 8 bytes, use BigInt to handle 64-bit integers
+                        const low = view.getUint32(offset, true);
+                        const high = view.getUint32(offset + 4, true);
+                        result[key] = BigInt(high) << 32n | BigInt(low);
+                        break;
+                    default:
+                        throw new Error(`Unsupported size: ${size}`);
+                }
+                offset += size; // Move the offset forward by the size of the current field
+            }
+
+            return result;
+        }
+
+        function getUint64(view, offset, littleEndian = true) {
+            const low = view.getUint32(offset, littleEndian); // Lower 32 bits
+            const high = view.getUint32(offset + 4, littleEndian); // Higher 32 bits (unsigned)
+
+            // Combine high and low into a single BigInt
+            return BigInt(high) << 32n | BigInt(low);
+        }
+
+        function ipToText(ip, port) {
+            // Convert the numeric IP to a dotted-decimal format
+            const ipText = [
+                (ip >> 24) & 0xFF, // Extract the first byte
+                (ip >> 16) & 0xFF, // Extract the second byte
+                (ip >> 8) & 0xFF,  // Extract the third byte
+                ip & 0xFF          // Extract the fourth byte
+            ].join('.'); // Join the bytes with dots
+
+            // Combine the IP and port into a single string
+            return `${ipText}:${port}`;
+        }
+    </script>
+</body>
+</html>

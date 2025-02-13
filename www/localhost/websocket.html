@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        .message {
+            margin: 5px 0;
+        }
+        .sent {
+            color: blue;
+        }
+        .received {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Client</h1>
+    <div id="messages">
+        <!-- Messages will appear here -->
+    </div>
+    <form id="messageForm">
+        <input type="text" id="messageInput" placeholder="Type your message..." required>
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        // Create a new WebSocket connection
+        const socket = new WebSocket('https://echo.websocket.org/'); // Replace with your WebSocket server URL
+
+        // Get references to the DOM elements
+        const messagesDiv = document.getElementById('messages');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+
+        // Function to add a message to the messages div
+        function addMessage(content, type) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', type);
+            messageElement.textContent = content;
+            messagesDiv.appendChild(messageElement);
+
+            // Scroll to the bottom to show the latest message
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Event: Connection opened
+        socket.onopen = () => {
+            console.log('WebSocket connection established: https://echo.websocket.org/');
+            addMessage('WebSocket connection established: https://echo.websocket.org/', 'info');
+
+            // Send a message to the server
+            // You can send any string or binary data
+            socket.send('Hello, server! This is the client.');
+            addMessage('Hello, server! This is the client.', 'sent');
+        };
+
+        // Event: Message received
+        socket.onmessage = (event) => {
+            console.log('Message received from server:', event.data);
+            addMessage(`Server: ${event.data}`, 'received');
+        };
+
+        // Event: Error occurred
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            addMessage('WebSocket error occurred.', 'error');
+        };
+
+        // Event: Connection closed
+        socket.onclose = (event) => {
+            console.log('WebSocket connection closed.');
+            addMessage('WebSocket connection closed.', 'info');
+        };
+
+        // Handle form submission to send a message
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault(); // Prevent the form from refreshing the page
+
+            const message = messageInput.value; // Get the message from the input field
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(message); // Send the message to the server
+                console.log('Message sent to server:', message);
+                addMessage(`You: ${message}`, 'sent'); // Display the sent message
+                messageInput.value = ''; // Clear the input field
+            } else {
+                console.error('WebSocket is not open. Cannot send message.');
+                addMessage('Cannot send message. WebSocket is not open.', 'error');
+            }
+        });
+    </script>
+</body>
+</html>
